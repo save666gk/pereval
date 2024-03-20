@@ -1,8 +1,9 @@
-
+from .models import Pereval, PerevalImage
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Pereval, PerevalImage
+from .models import Pereval
+from .serializers import PerevalSerializer
 
 
 class SubmitData(APIView):
@@ -58,3 +59,45 @@ class PerevalDataHandler:
             return {"status": 200, "message": "Отправлено успешно", "id": pereval.id}
         except Exception as e:
             return {"status": 500, "message": str(e), "id": None}
+
+
+
+class PerevalDetailView(APIView):
+    def get_object(self, pk):
+        try:
+            return Pereval.objects.get(pk=pk)
+        except Pereval.DoesNotExist:
+            return None
+
+    def get(self, request, id):
+        pereval = self.get_object(id)
+        if pereval:
+            serializer = PerevalSerializer(pereval)
+            return Response(serializer.data)
+        else:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+    def patch(self, request, id):
+        pereval = self.get_object(id)
+        if not pereval:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if pereval.status != 'new':
+            return Response({'state': 0, 'message': 'Cannot edit record with status other than "new".'})
+
+        serializer = PerevalSerializer(pereval, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'state': 1})
+        else:
+            return Response({'state': 0, 'message': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+class PerevalByUserEmailView(APIView):
+    def get(self, request):
+        email = request.query_params.get('user__email', None)
+        if email is not None:
+            perevals = Pereval.objects.filter(user_email=email)
+            serializer = PerevalSerializer(perevals, many=True)
+            return Response(serializer.data)
+        else:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
